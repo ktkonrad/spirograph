@@ -18,30 +18,45 @@
 (def rotations-per-second 0.2)
 
 ;;;; Drawing logic
+(defrecord Point [x y])
+(defrecord Gear [radius offest])
+
 (defn update-angle [angle]
   (+ angle (/ (* 2 Math/PI rotations-per-second) frames-per-second)))
 
-(defn get-x [angle]
-  (* (/ width 2) (+ 1 (q/cos angle))))
-
-(defn get-y [angle]
-  (* (/ height 2) (+ 1 (q/sin angle))))
+(defn get-pos [gear angle]
+  (let [center-x (/ width 2)
+        center-y (/ height 2)
+        R (/ width 2)
+        r (:radius gear)
+        s (:offset gear)
+        th angle
+        ph (-> R (-) (/ r) (* th))]
+    (Point.
+     (-> R (- r) (* (q/cos th)) (+ (-> r (- s) (* (q/cos ph)))) (+ center-x))
+     (-> R (- r) (* (q/sin th)) (+ (-> r (- s) (* (q/sin ph)))) (+ center-y)))))
+     
+(defn draw-path [path]
+  (let [endpoints (map list path (rest path))]
+    (for [[p1 p2] endpoints]
+      (q/line (:x p1) (:y p1) (:x p2) (:y p2)))))
 
 ;;;; Quil drawing stuff
 (defn setup[]
   (q/frame-rate frames-per-second)
   ;; Returns initial state.
-  {:angle 0})
+  {:angle 0
+   :gear (Gear. (/ height 5) (/ height 9))})
 
 (defn update-state [state]
   (.log js/console (pr-str state))
-  {:angle (update-angle (:angle state))})
+  (update-in state [:angle] update-angle))
 
 (defn draw [state]
   (q/background 255)
   (q/fill 0)
-  (let [angle (:angle state)]
-    (q/ellipse (get-x angle) (get-y angle) 5 5)))
+  (let [ p (get-pos (:gear state) (:angle state))]
+    (q/ellipse (:x p) (:y p) 5 5)))
 
 (q/defsketch hello
   :host "canvas"
