@@ -12,17 +12,15 @@
 ;; Messing with quil
 
 ;;;; Constants
-(def width 300)
-(def height 300)
+(def width 500)
+(def height 500)
 (def frames-per-second 30)
-(def rotations-per-second 0.2)
+(def rotations-per-second 0.25)
+(def max-path-len 150);(* 3 frames-per-second))
 
 ;;;; Drawing logic
 (defrecord Point [x y])
-(defrecord Gear [radius offest])
-
-(defn update-angle [angle]
-  (+ angle (/ (* 2 Math/PI rotations-per-second) frames-per-second)))
+(defrecord Gear [radius offest path])
 
 (defn get-pos [gear angle]
   (let [center-x (/ width 2)
@@ -36,9 +34,20 @@
      (-> R (- r) (* (q/cos th)) (+ (-> r (- s) (* (q/cos ph)))) (+ center-x))
      (-> R (- r) (* (q/sin th)) (+ (-> r (- s) (* (q/sin ph)))) (+ center-y)))))
      
+(defn update-angle [angle]
+  (+ angle (/ (* 2 Math/PI rotations-per-second) frames-per-second)))
+
+(defn update-path [path state]
+  (let [new-path
+        (conj path (get-pos (:gear state) (:angle state)))]
+    (loop [p new-path]
+      (if (> (count p) max-path-len)
+        (recur (pop p)) p))))
+  
 (defn draw-path [path]
   (let [endpoints (map list path (rest path))]
-    (for [[p1 p2] endpoints]
+    (doseq [[p1 p2] endpoints]
+      (.log js/console (pr-str [p1 p2]))
       (q/line (:x p1) (:y p1) (:x p2) (:y p2)))))
 
 ;;;; Quil drawing stuff
@@ -46,21 +55,22 @@
   (q/frame-rate frames-per-second)
   ;; Returns initial state.
   {:angle 0
-   :gear (Gear. (/ height 5) (/ height 9))})
+   :gear (Gear. (/ height (/ 22 7)) (/ height (/ 21 19)) #queue [])})
 
 (defn update-state [state]
   (.log js/console (pr-str state))
-  (update-in state [:angle] update-angle))
+  (-> state
+      (update-in [:angle] update-angle)
+      (update-in [:gear :path] update-path state)))
 
 (defn draw [state]
   (q/background 255)
   (q/fill 0)
-  (let [ p (get-pos (:gear state) (:angle state))]
-    (q/ellipse (:x p) (:y p) 5 5)))
+  (draw-path (get-in state [:gear :path])))
 
 (q/defsketch hello
   :host "canvas"
-  :size [300 300]
+  :size [width height]
   :setup setup
   :update update-state
   :draw draw
