@@ -16,19 +16,18 @@
 (def height 500)
 (def frames-per-second 30)
 (def rotations-per-second 0.25)
-(def max-path-len 150);(* 3 frames-per-second))
 
 ;;;; Drawing logic
 (defrecord Point [x y])
-(defrecord Gear [radius offest path])
+(defrecord Gear [radius-ratio offset-ratio angle])
 
-(defn get-pos [gear angle]
+(defn get-pos [gear]
   (let [center-x (/ width 2)
         center-y (/ height 2)
         R (/ width 2)
-        r (:radius gear)
-        s (:offset gear)
-        th angle
+        r (* R (:radius-ratio gear))
+        s (* r (:offset-ratio gear))
+        th (:angle gear)
         ph (-> R (-) (/ r) (* th))]
     (Point.
      (-> R (- r) (* (q/cos th)) (+ (-> r (- s) (* (q/cos ph)))) (+ center-x))
@@ -37,36 +36,33 @@
 (defn update-angle [angle]
   (+ angle (/ (* 2 Math/PI rotations-per-second) frames-per-second)))
 
-(defn update-path [path state]
-  (let [new-path
-        (conj path (get-pos (:gear state) (:angle state)))]
-    (loop [p new-path]
-      (if (> (count p) max-path-len)
-        (recur (pop p)) p))))
+(defn last-angle [angle]
+  (- angle (/ (* 2 Math/PI rotations-per-second) frames-per-second)))
   
-(defn draw-path [path]
-  (let [endpoints (map list path (rest path))]
-    (doseq [[p1 p2] endpoints]
-      (.log js/console (pr-str [p1 p2]))
-      (q/line (:x p1) (:y p1) (:x p2) (:y p2)))))
+(defn get-period [gear]
+  ;; Clojurescript does not have denominator :(
+  ;(* 2 Math/PI (denominator (:radius-ratio gear))))
+  (* 44 Math/PI))
+
+(defn draw-gear [gear]
+  (let [old-pos (get-pos (update-in gear [:angle] last-angle))
+        new-pos (get-pos gear)]
+    (q/line (:x old-pos) (:y old-pos) (:x new-pos) (:y new-pos))))
 
 ;;;; Quil drawing stuff
 (defn setup[]
   (q/frame-rate frames-per-second)
+  (q/background 255)
   ;; Returns initial state.
   {:angle 0
-   :gear (Gear. (/ height (/ 22 7)) (/ height (/ 21 19)) #queue [])})
+   :gear (Gear. (/ 4 7) (/ 1 3) 0)})
 
 (defn update-state [state]
   (.log js/console (pr-str state))
-  (-> state
-      (update-in [:angle] update-angle)
-      (update-in [:gear :path] update-path state)))
+  (update-in state [:gear :angle] update-angle state))
 
 (defn draw [state]
-  (q/background 255)
-  (q/fill 0)
-  (draw-path (get-in state [:gear :path])))
+  (draw-gear (:gear state)))
 
 (q/defsketch hello
   :host "canvas"
