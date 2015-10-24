@@ -15,9 +15,12 @@
 (def width 500)
 (def height 500)
 (def frames-per-second 30)
-(def rotations-per-second 0.25)
+(def rotations-per-second 0.5)
 
 ;;;; Drawing logic
+;; ClojureScript doesn't support clojure Ratios, so do it manually.
+;; TODO: use deftype and provide a ctor that does reduction.
+(defrecord Ratio [numerator denominator value])
 (defrecord Point [x y])
 (defrecord Gear [radius-ratio offset-ratio angle])
 
@@ -25,8 +28,8 @@
   (let [center-x (/ width 2)
         center-y (/ height 2)
         R (/ width 2)
-        r (* R (:radius-ratio gear))
-        s (* r (:offset-ratio gear))
+        r (* R (->> gear (:radius-ratio) (:value)))
+        s (* r (->> gear (:offset-ratio) (:value)))
         th (:angle gear)
         ph (-> R (-) (/ r) (* th))]
     (Point.
@@ -40,14 +43,13 @@
   (- angle (/ (* 2 Math/PI rotations-per-second) frames-per-second)))
   
 (defn get-period [gear]
-  ;; Clojurescript does not have denominator :(
-  ;(* 2 Math/PI (denominator (:radius-ratio gear))))
-  (* 44 Math/PI))
+  (* 2 Math/PI (->> gear (:radius-ratio) (:numerator))))
 
 (defn draw-gear [gear]
-  (let [old-pos (get-pos (update-in gear [:angle] last-angle))
-        new-pos (get-pos gear)]
-    (q/line (:x old-pos) (:y old-pos) (:x new-pos) (:y new-pos))))
+  (if (< (:angle gear) (get-period gear))
+    (let [old-pos (get-pos (update-in gear [:angle] last-angle))
+          new-pos (get-pos gear)]
+      (q/line (:x old-pos) (:y old-pos) (:x new-pos) (:y new-pos)))))
 
 ;;;; Quil drawing stuff
 (defn setup[]
@@ -55,7 +57,7 @@
   (q/background 255)
   ;; Returns initial state.
   {:angle 0
-   :gear (Gear. (/ 4 7) (/ 1 3) 0)})
+   :gear (Gear. (Ratio. 7 10 (/ 7 10)) (Ratio. 1 3 (/ 1 3)) 0)})
 
 (defn update-state [state]
   (.log js/console (pr-str state))
