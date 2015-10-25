@@ -1,5 +1,5 @@
 (ns spirograph.core
-    (:require [reagent.core :as reagent :refer [atom]]
+    (:require [reagent.core :as r]
               [reagent.session :as session]
               [secretary.core :as secretary :include-macros true]
               [goog.events :as events]
@@ -66,8 +66,10 @@
 (defn draw [state]
   (draw-gear (:gear state)))
 
+(def canvas-id "canvas")
+
 (q/defsketch hello
-  :host "canvas"
+  :host canvas-id
   :size [width height]
   :setup setup
   :update update-state
@@ -75,11 +77,36 @@
   :middleware [m/fun-mode])
 
 ;; -------------------------
+(defn ^:export sketch-start [id]
+  (q/with-sketch (q/get-sketch-by-id id)
+    (q/start-loop)))
+
+(defn ^:export sketch-stop [id]
+  (q/with-sketch (q/get-sketch-by-id id)
+    (q/no-loop)))
+
+;; Controls
+(def running (r/atom true))
+
+(defn stop-button []
+  (let [start #(q/with-sketch (q/get-sketch-by-id canvas-id)
+                 (q/start-loop))
+        stop  #(q/with-sketch (q/get-sketch-by-id canvas-id)
+                 (q/no-loop))]
+    [:div
+     [:input {:type "button"
+              :value (if @running "stop" "start")
+              :on-click (fn []
+                          (if @running (stop) (start))
+                          (swap! running not))}]]))
+
+;; -------------------------
 ;; Views
 
 (defn home-page []
   [:div [:h2 "Welcome to spirograph"]
    [:div [:canvas {:id "canvas"}]]
+   [stop-button]
    [:div [:a {:href "#/about"} "go to about page"]]])
 
 (defn about-page []
@@ -113,7 +140,7 @@
 ;; -------------------------
 ;; Initialize app
 (defn mount-root []
-  (reagent/render [current-page] (.getElementById js/document "app")))
+  (r/render [current-page] (.getElementById js/document "app")))
 
 (defn init! []
   (hook-browser-navigation!)
